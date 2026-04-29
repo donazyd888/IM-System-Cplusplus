@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql --version)",
+      "Bash(g++ --version)",
+      "Bash(cmake --version)",
+      "Bash(npm --version)",
+      "Bash(wsl.exe --list --verbose)",
+      "Bash(mysql *)",
+      "Bash(/c/Users/Admin/Desktop/ReactorIM/cmake-build-debug-wsl/ReactorIM --help)",
+      "Bash(wsl.exe *)",
+      "Bash(powershell.exe -Command \"Get-Service MySQL* -ErrorAction SilentlyContinue | Select-Object Name, Status, StartType\")",
+      "Bash(powershell.exe -Command \"Get-Service -Name 'MySQL80' -ErrorAction SilentlyContinue | Select-Object Name, Status\")",
+      "Bash(net start *)",
+      "Bash(powershell.exe -Command \"Start-Service MySQL80\")",
+      "Bash(powershell.exe -Command \"& 'E:\\\\MySQL\\\\Program\\\\MySQL Server 8.0\\\\bin\\\\mysqld' --console\")",
+      "Read(//e/MySQL/Program/MySQL Server 8.0/**)",
+      "Read(//c/ProgramData/MySQL/MySQL Server 8.0/**)",
+      "Read(//c/ProgramData/MySQL/**)",
+      "Bash(powershell.exe *)",
+      "Bash(npx electron *)",
+      "Bash(pkill -f \"ReactorIM\")",
+      "Bash(pkill -f \"electron\")"
+    ]
+  }
+}

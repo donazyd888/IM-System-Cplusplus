@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Reactor IM</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 50px; background-color: #f5f6fa;}
+        input { padding: 10px; margin: 10px; width: 200px; border-radius: 5px; border: 1px solid #ccc;}
+        button { padding: 10px 20px; background-color: #00a8ff; color: white; border: none; border-radius: 5px; cursor: pointer;}
+        button:hover { background-color: #0097e6; }
+        #statusBox { margin-top: 20px; color: #e1b12c; font-weight: bold; }
+    </style>
+</head>
+<body>
+<h2>🚀 Reactor IM 登录</h2>
+<div>
+    <input type="text" id="username" placeholder="请输入用户名"><br>
+    <input type="password" id="password" placeholder="请输入密码"><br>
+    <button onclick="doLogin()">登 录</button>
+</div>
+
+<div id="statusBox">等待操作...</div>
+
+<script>
+    const { ipcRenderer } = require('electron');
+
+    // 接收来自 main.js 的回复 (去除了原本冗余的嵌套监听)
+    ipcRenderer.on('server-reply', (event, rawData) => {
+        try {
+            const j = JSON.parse(rawData);
+            if (j.type === 'login_ack') {
+                const statusBox = document.getElementById('statusBox');
+                if (j.data.status === 'success') {
+                    statusBox.style.color = '#44bd32';
+                    statusBox.innerText = '登录成功！即将跳转聊天界面...';
+
+                    // 🌟 核心修改：提取 C++ 返回的完整信息，打包成对象发给主进程
+                    let userInfo = {
+                        username: j.data.username,
+                        user_id: j.data.user_id,
+                        avatar_url: j.data.avatar_url
+                    };
+
+                    // 延迟 0.5 秒后跳转，视觉体验更好
+                    setTimeout(() => {
+                        ipcRenderer.send('login-success', userInfo);
+                    }, 500);
+
+                } else {
+                    statusBox.style.color = '#e84118';
+                    statusBox.innerText = '登录失败: ' + j.data.msg;
+                }
+            }
+        } catch (e) {
+            console.error("解析 JSON 失败", e);
+        }
+    });
+
+    // 点击登录按钮触发的函数
+    function doLogin() {
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+
+        // 组装 JSON
+        const msg = JSON.stringify({
+            type: "login",
+            data: { username: u, password: p }
+        });
+
+        // 发送给 main.js 去走 TCP 网络
+        ipcRenderer.send('send-to-server', msg);
+        document.getElementById('statusBox').innerText = '正在登录中...';
+    }
+</script>
+</body>
+</html>

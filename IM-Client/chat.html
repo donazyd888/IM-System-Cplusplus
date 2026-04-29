@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Reactor IM - 聊天室</title>
+    <style>
+        /* 现代 CSS Reset & 基础布局 */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; display: flex; height: 100vh; background-color: #f5f5f5; }
+
+        /* 左侧边栏 (类似微信联系人列表) */
+        .sidebar { width: 280px; background-color: #2e3238; color: #fff; display: flex; flex-direction: column; }
+        .user-profile { padding: 20px; background-color: #26292e; font-size: 16px; font-weight: bold; border-bottom: 1px solid #1a1c20; display: flex; align-items: center;}
+
+        /* 添加好友区域 */
+        .add-friend-box { padding: 15px; border-bottom: 1px solid #1a1c20; display: flex; gap: 8px;}
+        .add-friend-box input { flex: 1; padding: 8px; border-radius: 4px; border: none; outline: none; background-color: #26292e; color: white; font-size: 13px;}
+        .add-friend-box input::placeholder { color: #888; }
+        .add-friend-box button { padding: 0 12px; background-color: #07c160; color: white; border: none; border-radius: 4px; cursor: pointer; transition: 0.2s;}
+        .add-friend-box button:hover { background-color: #06ad56; }
+
+        .contact-list { flex: 1; padding: 10px; overflow-y: auto; }
+        .contact-item { padding: 10px; margin-bottom: 5px; background-color: transparent; border-radius: 5px; cursor: pointer; display: flex; align-items: center; transition: 0.2s;}
+        .contact-item:hover { background-color: #3a3f45; }
+
+        /* 纯 CSS 绘制的首字母头像 */
+        .avatar-circle { width: 36px; height: 36px; border-radius: 50%; background-color: #1289A7; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 12px; font-size: 18px;}
+
+        /* 右侧聊天主区域 */
+        .chat-main { flex: 1; display: flex; flex-direction: column; background-color: #f5f5f5; }
+
+        /* 顶部标题栏 */
+        .chat-header { height: 60px; padding: 0 20px; border-bottom: 1px solid #e7e7e7; display: flex; align-items: center; background-color: #fff; justify-content: space-between;}
+        .chat-header-title { font-size: 18px; font-weight: bold; color: #333; }
+        .chat-header input { padding: 6px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; width: 150px; outline: none; }
+
+        /* 消息展示区 */
+        .chat-history { flex: 1; padding: 20px; overflow-y: auto; background-color: #f5f5f5; display: flex; flex-direction: column; }
+
+        /* 微信风气泡设计 */
+        .msg-row { display: flex; margin-bottom: 15px; width: 100%; }
+        .msg-row.me { justify-content: flex-end; }
+        .msg-row.other { justify-content: flex-start; }
+
+        .bubble { max-width: 60%; padding: 10px 15px; border-radius: 8px; font-size: 15px; line-height: 1.5; word-wrap: break-word; position: relative;}
+        .msg-row.other .bubble { background-color: #fff; border: 1px solid #ebebeb; }
+        .msg-row.me .bubble { background-color: #95ec69; }
+
+        .msg-sender { font-size: 12px; color: #999; margin-bottom: 4px; }
+        .msg-row.me .msg-sender { display: none; }
+
+        /* 底部输入区 */
+        .chat-input-area { height: 160px; background-color: #fff; border-top: 1px solid #e7e7e7; display: flex; flex-direction: column; padding: 10px; }
+        .toolbar { height: 30px; display: flex; align-items: center; padding-left: 10px; color: #888; font-size: 14px;}
+        textarea { flex: 1; border: none; outline: none; resize: none; padding: 10px; font-size: 15px; font-family: inherit; }
+        .send-action { text-align: right; padding-right: 10px; padding-bottom: 10px; }
+        .send-btn { padding: 8px 24px; background-color: #e9e9e9; color: #07c160; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; transition: 0.2s; }
+        .send-btn:hover { background-color: #d2d2d2; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="user-profile">
+        <div class="avatar-circle" style="background-color: #07c160;" id="myAvatar">?</div>
+        <span id="myUsername">加载中...</span>
+    </div>
+
+    <div class="add-friend-box">
+        <input type="text" id="addFriendInput" placeholder="输入要添加的用户名...">
+        <button onclick="reqAddFriend()">➕</button>
+    </div>
+
+    <div class="contact-list" id="friendListContainer">
+        <div style="text-align: center; color: #888; margin-top: 20px; font-size: 12px;">加载好友中...</div>
+    </div>
+</div>
+
+<div class="chat-main">
+    <div class="chat-header">
+        <div class="chat-header-title" id="chatTitle">聊天大厅</div>
+        <div>
+            <span style="font-size: 12px; color: #888;">当前发送至：</span>
+            <input type="text" id="targetUser" placeholder="可手动覆盖目标用户名">
+        </div>
+    </div>
+
+    <div class="chat-history" id="chatHistory">
+    </div>
+
+    <div class="chat-input-area">
+        <div class="toolbar">😊 📎 ✂️ (点击左侧好友开始聊天)</div>
+        <textarea id="msgContent" placeholder="按 Enter 发送..."></textarea>
+        <div class="send-action">
+            <button class="send-btn" onclick="sendMessage()">发送 (S)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { ipcRenderer } = require('electron');
+    let myUserInfo = null;
+
+    // 🌟 新增核心：本地聊天记录缓存字典
+    // 格式: { "对方用户名": [ {sender: "谁发的", text: "内容", isMe: true/false}, ... ] }
+    let chatCache = {};
+
+    async function init() {
+        myUserInfo = await ipcRenderer.invoke('get-current-user');
+        document.getElementById('myUsername').innerText = myUserInfo.username;
+        document.getElementById('myAvatar').innerText = myUserInfo.username.charAt(0).toUpperCase();
+
+        const req = JSON.stringify({ type: "get_friend_list", data: { user_id: myUserInfo.user_id } });
+        ipcRenderer.send('send-to-server', req);
+
+        const missedMsgs = await ipcRenderer.invoke('chat-ui-ready');
+        for (let msg of missedMsgs) {
+            handleServerMessage(msg);
+        }
+    }
+    init();
+
+    // 统一的消息处理中枢
+    function handleServerMessage(rawData) {
+        try {
+            const j = JSON.parse(rawData);
+
+            if (j.type === 'chat') {
+                let displayContent = j.data.content;
+                if (j.data.is_offline_history) { displayContent = "[离线留言] " + displayContent; }
+
+                let fromUser = j.data.from_user;
+
+                // 🌟 1. 收到消息时，先存入对应好友的缓存小本子里
+                if (!chatCache[fromUser]) chatCache[fromUser] = [];
+                chatCache[fromUser].push({ sender: fromUser, text: displayContent, isMe: false });
+
+                // 🌟 2. 判断：如果当前正打开着这个好友的对话框，才立刻渲染到屏幕上
+                const currentChatUser = document.getElementById('targetUser').value.trim();
+                if (currentChatUser === fromUser) {
+                    appendBubble(fromUser, displayContent, false);
+                } else {
+                    // (可选) 对方发来消息但你没切过去，其实可以在这做个红点提示，目前先静默存入缓存
+                    console.log(`收到来自 ${fromUser} 的后台消息已存入缓存`);
+                }
+            }
+            else if (j.type === 'chat_ack' && j.data.status === 'offline_saved') {
+                appendSystemMsg(`(系统提示: 对方不在线，消息已转为离线留言)`);
+            }
+            else if (j.type === 'get_friend_list_ack') {
+                renderFriendList(j.data);
+            }
+            else if (j.type === 'add_friend_ack') {
+                if (j.code === 200) {
+                    alert("添加好友成功！");
+                    const req = JSON.stringify({ type: "get_friend_list", data: { user_id: myUserInfo.user_id } });
+                    ipcRenderer.send('send-to-server', req);
+                } else {
+                    alert("添加失败: " + j.msg);
+                }
+            }
+        } catch (e) {}
+    }
+
+    ipcRenderer.on('server-reply', (event, rawData) => {
+        handleServerMessage(rawData);
+    });
+
+    function reqAddFriend() {
+        const friendName = document.getElementById('addFriendInput').value.trim();
+        if (!friendName) return;
+        if (friendName === myUserInfo.username) { alert("不能添加自己！"); return; }
+
+        const req = JSON.stringify({
+            type: "add_friend",
+            data: { user_id: myUserInfo.user_id, friend_username: friendName }
+        });
+        ipcRenderer.send('send-to-server', req);
+        document.getElementById('addFriendInput').value = "";
+    }
+
+    function renderFriendList(friends) {
+        const container = document.getElementById('friendListContainer');
+        container.innerHTML = "";
+
+        if(friends.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #888; margin-top: 20px; font-size: 12px;">暂无好友</div>';
+            return;
+        }
+
+        friends.forEach(f => {
+            const initial = f.username.charAt(0).toUpperCase();
+            const colors = ['#1289A7', '#ED4C67', '#009432', '#F79F1F', '#833471'];
+            const color = colors[f.username.length % colors.length];
+
+            container.innerHTML += `
+                <div class="contact-item" onclick="startChatWith('${f.username}')">
+                    <div class="avatar-circle" style="background-color: ${color};">${initial}</div>
+                    <span style="font-size: 15px;">${f.username}</span>
+                </div>
+            `;
+        });
+    }
+
+    // 🌟 点击好友列表，切换聊天对象并恢复历史记录
+    function startChatWith(username) {
+        document.getElementById('targetUser').value = username;
+        document.getElementById('chatTitle').innerText = "与 " + username + " 聊天中";
+
+        const historyDiv = document.getElementById('chatHistory');
+        historyDiv.innerHTML = ""; // 切换时先清空黑板
+        appendSystemMsg(`--- 已切换至与 ${username} 的会话 ---`);
+
+        // 🌟 核心：从字典里把这个人的聊天记录拿出来，挨个重新画上去
+        if (chatCache[username]) {
+            chatCache[username].forEach(msg => {
+                appendBubble(msg.sender, msg.text, msg.isMe);
+            });
+        }
+    }
+
+    // 发送消息
+    function sendMessage() {
+        const target = document.getElementById('targetUser').value.trim();
+        const content = document.getElementById('msgContent').value.trim();
+
+        if (!target) { alert('请先在左侧选择一个好友！'); return; }
+        if (!content) return;
+
+        const msg = JSON.stringify({
+            type: "chat",
+            data: { from_user: myUserInfo.username, to_user: target, content: content }
+        });
+
+        ipcRenderer.send('send-to-server', msg);
+
+        // 🌟 核心：自己发出的消息，也要存进和目标好友的缓存记录里
+        if (!chatCache[target]) chatCache[target] = [];
+        chatCache[target].push({ sender: myUserInfo.username, text: content, isMe: true });
+
+        // 画到当前屏幕上
+        appendBubble(myUserInfo.username, content, true);
+        document.getElementById('msgContent').value = '';
+    }
+
+    function appendBubble(sender, text, isMe) {
+        const historyDiv = document.getElementById('chatHistory');
+        const rowDiv = document.createElement('div');
+        rowDiv.className = isMe ? 'msg-row me' : 'msg-row other';
+
+        let html = '';
+        if (!isMe) { html += `<div class="msg-sender">${sender}</div>`; }
+        html += `<div class="bubble">${text}</div>`;
+
+        rowDiv.innerHTML = html;
+        historyDiv.appendChild(rowDiv);
+        historyDiv.scrollTop = historyDiv.scrollHeight;
+    }
+
+    function appendSystemMsg(text) {
+        const historyDiv = document.getElementById('chatHistory');
+        const div = document.createElement('div');
+        div.style = "text-align: center; font-size: 12px; color: #ccc; margin: 15px 0;";
+        div.innerText = text;
+        historyDiv.appendChild(div);
+        historyDiv.scrollTop = historyDiv.scrollHeight;
+    }
+
+    document.getElementById('msgContent').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+</script>
+</body>
+</html>
